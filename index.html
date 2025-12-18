@@ -2,10 +2,14 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>H5P Game</title>
-    <link rel="stylesheet" type="text/css" href="h5p-standalone/dist/styles/h5p.css">
-    <script type="text/javascript" src="h5p-standalone/dist/js/h5p-standalone-main.min.js"></script>
-    <style> body { margin: 0; padding: 0; } </style>
+    <title>H5P Game Host</title>
+    <link rel="stylesheet" type="text/css" href="./h5p-standalone/dist/styles/h5p.css">
+    <script type="text/javascript" src="./h5p-standalone/dist/js/h5p-standalone-main.min.js"></script>
+    
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        #h5p-container { width: 100%; height: 100%; }
+    </style>
 </head>
 <body>
     <div id="h5p-container"></div>
@@ -13,32 +17,44 @@
     <script>
         const el = document.getElementById('h5p-container');
         
-        // Cấu hình trỏ vào folder game đã giải nén
+        // Cấu hình đường dẫn resources
         const options = {
-            h5pJsonPath: './my-game',
+            // 1. Đường dẫn tới folder chứa nội dung game (đã giải nén)
+            // Giả sử bạn giải nén file .h5p vào folder tên là 'my-game' nằm cùng cấp với index.html
+            h5pJsonPath: './my-game', 
+
+            // 2. Đường dẫn tới các file core của thư viện
             frameJs: './h5p-standalone/dist/js/h5p-standalone-frame.min.js',
             frameCss: './h5p-standalone/dist/styles/h5p.css',
         };
 
+        // Khởi chạy H5P
         new H5PStandalone.H5P(el, options).then(function() {
-            // Lắng nghe sự kiện xAPI khi game load xong
+            console.log("H5P Loaded Successfully on GitHub Pages");
+
+            // Lắng nghe sự kiện xAPI
             if (window.H5P && window.H5P.externalDispatcher) {
                 window.H5P.externalDispatcher.on('xAPI', function (event) {
                     
-                    // Chỉ bắt sự kiện hoàn thành (completed)
+                    // Chỉ bắt sự kiện hoàn thành
                     if (event.getVerb() === 'completed') {
                         const score = event.getScore();
                         const maxScore = event.getMaxScore();
+                        
+                        console.log(`User finished with score: ${score}/${maxScore}`);
 
-                        // Gửi message ra cửa sổ cha (SPFx)
+                        // Gửi message ra SharePoint (Parent Window)
                         window.parent.postMessage({
                             type: 'H5P_RESULT_SUBMISSION',
                             score: score,
                             maxScore: maxScore
-                        }, '*'); // '*' để chấp nhận mọi domain cha, hoặc thay bằng domain sharepoint của bạn để bảo mật hơn
+                        }, '*'); 
                     }
                 });
             }
+        }).catch(function(err){
+            console.error("H5P Load Error:", err);
+            document.body.innerHTML = "<h3 style='color:red; text-align:center'>Không thể tải Game. Kiểm tra lại đường dẫn folder trên GitHub.</h3>";
         });
     </script>
 </body>
