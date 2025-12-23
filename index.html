@@ -7,48 +7,108 @@
     <script type="text/javascript" src="./h5p-standalone/dist/main.bundle.js"></script>
     
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
+        .hidden { display: none; }
         #h5p-container { width: 100%; height: 100%; }
+        #action-container { position: absolute; top: 120px; left: 0; right: 0; text-align: center; }
+        .btn {
+          padding: 8px 20px;
+          border-radius: 10px;
+          border: 0;
+          letter-spacing: 1.5px;
+          font-size: 15px;
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+
+        .btn-primary {
+          background-color: rgb(0, 113, 226);
+          box-shadow: rgb(29, 95, 161) 0px 10px 0px 0px;
+          color: hsl(0, 0%, 100%);
+        }
+
+        .btn-primary:hover {
+          box-shadow: rgb(29, 95, 161) 0px 7px 0px 0px;
+        }
+
+        .btn-primary:active {
+          background-color: rgb(0, 113, 226);
+          box-shadow: rgb(29, 95, 161) 0px 0px 0px 0px;
+          transform: translateY(5px);
+          transition: 200ms;
+        }
+
+        .btn-danger {
+          background-color: rgb(255, 56, 86);
+          box-shadow: rgb(201, 46, 70) 0px 10px 0px 0px;
+          color: hsl(0, 0%, 100%);
+        }
+
+        .btn-danger:hover {
+          box-shadow: rgb(201, 46, 70) 0px 7px 0px 0px;
+        }
+
+        .btn-danger:active {
+          background-color: rgb(255, 56, 86);
+          box-shadow: rgb(201, 46, 70) 0px 0px 0px 0px;
+          transform: translateY(5px);
+          transition: 200ms;
+        }
     </style>
 </head>
 <body>
     <div id="h5p-container"></div>
+    <div id="action-container" class="hidden">
+      <button class="btn btn-danger btn-restart" onclick="btnRestartClick()">Restart</button>
+      &nbsp;
+      <button class="btn btn-primary btn-submit" onclick="btnSubmitClick()">Submit</button>
+    </div>
+    <script>
+      function parseIsoDurationToSeconds (duration) {
+        // Regex to capture optional Hours, Minutes, and Seconds groups
+        // The format looks for 'H', 'M', and 'S' indicators.
+        const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/;
+        const matches = duration.match(regex);
 
+        if (!matches) {
+            return 0;
+        }
+
+        // Extract parts (undefined if not present in string)
+        const hours = matches[1] ? parseFloat(matches[1]) : 0;
+        const minutes = matches[2] ? parseFloat(matches[2]) : 0;
+        const seconds = matches[3] ? parseFloat(matches[3]) : 0;
+
+        // Calculate total seconds
+        return (hours * 3600) + (minutes * 60) + seconds;
+      };
+    </script>
     <script>
         const el = document.getElementById('h5p-container');
+        const actionContainerElem = document.getElementById('action-container');
+        const FORM_BASE_URL = "https://forms.office.com/Pages/ResponsePage.aspx?id=cTYy0b7NF0S01L2yS1Exa6-CvAfXWsRNmiZUKpgDQ1ZUMUcySUJKTTRYTjhSQkJJM0pYRkhFVk8yWSQlQCN0PWcu"; 
+        const FIELD_ID = "r2b337f6c38334fae82aec7c3a2b9f6a1";
+        const GAME_ID = "1";
+        let userData = null;
         
-        // Cấu hình đường dẫn resources
         const options = {
-            // 1. Đường dẫn tới folder chứa nội dung game (đã giải nén)
-            // Giả sử bạn giải nén file .h5p vào folder tên là 'my-game' nằm cùng cấp với index.html
             h5pJsonPath: './my-game', 
-
-            // 2. Đường dẫn tới các file core của thư viện
             frameJs: './h5p-standalone/dist/frame.bundle.js',
             frameCss: './h5p-standalone/dist/styles/h5p.css',
         };
 
-        // Khởi chạy H5P
-        new H5PStandalone.H5P(el, options).then(function() {
-            console.log("H5P Loaded Successfully on GitHub Pages");
-
-            // Lắng nghe sự kiện xAPI
+        new H5PStandalone.H5P(el, options).then(function(id) {
             if (window.H5P && window.H5P.externalDispatcher) {
                 window.H5P.externalDispatcher.on('xAPI', function (event) {
-                    
-                    // Chỉ bắt sự kiện hoàn thành
-                    if (event.getVerb() === 'completed') {
+                    if (event.getVerb() === "completed" && !event.getVerifiedStatementValue(["context", "contextActivities", "parent"])) {
                         const score = event.getScore();
                         const maxScore = event.getMaxScore();
+                        const duration = parseIsoDurationToSeconds(event.data.statement.result.duration);
                         
-                        console.log(`User finished with score: ${score}/${maxScore}`);
-
-                        // Gửi message ra SharePoint (Parent Window)
-                        window.parent.postMessage({
-                            type: 'H5P_RESULT_SUBMISSION',
-                            score: score,
-                            maxScore: maxScore
-                        }, '*'); 
+                        actionContainerElem.classList.remove('hidden');
+                        
+                        const base64String = btoa(JSON.stringify({ resultId: id, gameId: GAME_ID, score, maxScore, duration }));
+                        userData = id + base64String;
                     }
                 });
             }
@@ -56,6 +116,15 @@
             console.error("H5P Load Error:", err);
             document.body.innerHTML = "<h3 style='color:red; text-align:center'>Không thể tải Game. Kiểm tra lại đường dẫn folder trên GitHub.</h3>";
         });
+        
+        function btnRestartClick () {
+          window.location.reload();
+        }
+        
+        function btnSubmitClick () {
+          const submitUrl = `${FORM_BASE_URL}&${FIELD_ID}=${encodeURIComponent(userData)}`;
+          window.top.location.href = submitUrl;
+        }
     </script>
 </body>
 </html>
